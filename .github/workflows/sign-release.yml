@@ -339,7 +339,7 @@ jobs:
 
       - name: Sign agent EXE (SSL.com eSigner)
         if: inputs.signing-mode == 'sslcom' && inputs.dry-run == false
-        uses: sslcom/esigner-codesign@develop
+        uses: sslcom/esigner-codesign@v1.3.2
         with:
           command: sign
           username: ${{ secrets.ES_USERNAME }}
