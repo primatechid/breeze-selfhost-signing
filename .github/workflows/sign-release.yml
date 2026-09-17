@@ -347,7 +347,7 @@ jobs:
           credential_id: ${{ secrets.CREDENTIAL_ID }}
           totp_secret: ${{ secrets.ES_TOTP_SECRET }}
           file_path: ${{ github.workspace }}/dist/breeze-agent-windows-amd64.exe
-          output_path: ${{ github.workspace }}/dist
+          override: true
           environment_name: PROD
           malware_block: false
           clean_logs: true
@@ -363,7 +363,7 @@ jobs:
           credential_id: ${{ secrets.CREDENTIAL_ID }}
           totp_secret: ${{ secrets.ES_TOTP_SECRET }}
           file_path: ${{ github.workspace }}/dist/breeze-backup-windows-amd64.exe
-          output_path: ${{ github.workspace }}/dist
+          override: true
           environment_name: PROD
           malware_block: false
           clean_logs: true
@@ -379,7 +379,7 @@ jobs:
           credential_id: ${{ secrets.CREDENTIAL_ID }}
           totp_secret: ${{ secrets.ES_TOTP_SECRET }}
           file_path: ${{ github.workspace }}/dist/breeze-watchdog-windows-amd64.exe
-          output_path: ${{ github.workspace }}/dist
+          override: true
           environment_name: PROD
           malware_block: false
           clean_logs: true
@@ -395,7 +395,7 @@ jobs:
           credential_id: ${{ secrets.CREDENTIAL_ID }}
           totp_secret: ${{ secrets.ES_TOTP_SECRET }}
           file_path: ${{ github.workspace }}/dist/breeze-user-helper-windows-amd64.exe
-          output_path: ${{ github.workspace }}/dist
+          override: true
           environment_name: PROD
           malware_block: false
           clean_logs: true
@@ -460,7 +460,7 @@ jobs:
           credential_id: ${{ secrets.CREDENTIAL_ID }}
           totp_secret: ${{ secrets.ES_TOTP_SECRET }}
           file_path: ${{ github.workspace }}/dist/breeze-agent.msi
-          output_path: ${{ github.workspace }}/dist
+          override: true
           environment_name: PROD
           malware_block: false
           clean_logs: true
