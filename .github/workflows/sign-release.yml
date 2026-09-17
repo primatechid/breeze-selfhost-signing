@@ -22,11 +22,12 @@ on:
         required: true
         type: string
       signing-mode:
-        description: 'Windows signing backend (pfx is legacy/internal-PKI only)'
+        description: 'Windows signing backend'
         required: true
-        default: azure-artifact-signing
+        default: sslcom
         type: choice
         options:
+          - sslcom
           - azure-artifact-signing
           - pfx
       platforms:
@@ -50,7 +51,7 @@ on:
         type: string
       signing-mode:
         required: false
-        default: azure-artifact-signing
+        default: sslcom
         type: string
       platforms:
         required: false
@@ -101,8 +102,8 @@ jobs:
             *) echo "::error::platforms '$PLATFORMS' is not one of: all, windows, macos"; exit 1 ;;
           esac
           case "$SIGNING_MODE" in
-            azure-artifact-signing|pfx) ;;
-            *) echo "::error::signing-mode '$SIGNING_MODE' is not one of: azure-artifact-signing, pfx"; exit 1 ;;
+            sslcom|azure-artifact-signing|pfx) ;;
+            *) echo "::error::signing-mode '$SIGNING_MODE' is not one of: sslcom, azure-artifact-signing, pfx"; exit 1 ;;
           esac
           echo "inputs ok: platforms=$PLATFORMS signing-mode=$SIGNING_MODE"
 
@@ -200,6 +201,30 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "wix install failed with exit code $LASTEXITCODE" }
           "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           wix eula accept wix7
+
+      - name: Validate SSL.com signing secrets
+        if: inputs.signing-mode == 'sslcom' && inputs.dry-run == false
+        shell: pwsh
+        env:
+          ES_USERNAME: ${{ secrets.ES_USERNAME }}
+          ES_PASSWORD: ${{ secrets.ES_PASSWORD }}
+          CREDENTIAL_ID: ${{ secrets.CREDENTIAL_ID }}
+          ES_TOTP_SECRET: ${{ secrets.ES_TOTP_SECRET }}
+        run: |
+          $required = @(
+            "ES_USERNAME",
+            "ES_PASSWORD",
+            "CREDENTIAL_ID",
+            "ES_TOTP_SECRET"
+          )
+
+          foreach ($name in $required) {
+            if ([string]::IsNullOrWhiteSpace((Get-Item "env:$name" -ErrorAction SilentlyContinue).Value)) {
+              throw "Missing required SSL.com signing secret: $name"
+            }
+          }
+
+          Write-Host "SSL.com signing secrets are present."
 
       - name: Validate Azure signing secrets
         if: inputs.signing-mode == 'azure-artifact-signing' && inputs.dry-run == false
@@ -312,6 +337,70 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "signtool failed for $f with exit code $LASTEXITCODE" }
           }
 
+      - name: Sign agent EXE (SSL.com eSigner)
+        if: inputs.signing-mode == 'sslcom' && inputs.dry-run == false
+        uses: sslcom/esigner-codesign@v1.3.2
+        with:
+          command: sign
+          username: ${{ secrets.ES_USERNAME }}
+          password: ${{ secrets.ES_PASSWORD }}
+          credential_id: ${{ secrets.CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
+          file_path: ${{ github.workspace }}/dist/breeze-agent-windows-amd64.exe
+          override: true
+          environment_name: PROD
+          malware_block: false
+          clean_logs: true
+          jvm_max_memory: 1024M
+
+      - name: Sign backup EXE (SSL.com eSigner)
+        if: inputs.signing-mode == 'sslcom' && inputs.dry-run == false
+        uses: sslcom/esigner-codesign@v1.3.2
+        with:
+          command: sign
+          username: ${{ secrets.ES_USERNAME }}
+          password: ${{ secrets.ES_PASSWORD }}
+          credential_id: ${{ secrets.CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
+          file_path: ${{ github.workspace }}/dist/breeze-backup-windows-amd64.exe
+          override: true
+          environment_name: PROD
+          malware_block: false
+          clean_logs: true
+          jvm_max_memory: 1024M
+
+      - name: Sign watchdog EXE (SSL.com eSigner)
+        if: inputs.signing-mode == 'sslcom' && inputs.dry-run == false
+        uses: sslcom/esigner-codesign@v1.3.2
+        with:
+          command: sign
+          username: ${{ secrets.ES_USERNAME }}
+          password: ${{ secrets.ES_PASSWORD }}
+          credential_id: ${{ secrets.CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
+          file_path: ${{ github.workspace }}/dist/breeze-watchdog-windows-amd64.exe
+          override: true
+          environment_name: PROD
+          malware_block: false
+          clean_logs: true
+          jvm_max_memory: 1024M
+
+      - name: Sign user-helper EXE (SSL.com eSigner)
+        if: inputs.signing-mode == 'sslcom' && inputs.dry-run == false
+        uses: sslcom/esigner-codesign@v1.3.2
+        with:
+          command: sign
+          username: ${{ secrets.ES_USERNAME }}
+          password: ${{ secrets.ES_PASSWORD }}
+          credential_id: ${{ secrets.CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
+          file_path: ${{ github.workspace }}/dist/breeze-user-helper-windows-amd64.exe
+          override: true
+          environment_name: PROD
+          malware_block: false
+          clean_logs: true
+          jvm_max_memory: 1024M
+
       - name: Build MSI
         shell: pwsh
         env:
@@ -361,17 +450,21 @@ jobs:
           # external script into a terminating error — only a thrown exception.
           if ($LASTEXITCODE -ne 0) { throw "build-msi.ps1 failed with exit code $LASTEXITCODE" }
 
-      - name: Sign MSI (Azure Artifact Signing)
-        if: inputs.signing-mode == 'azure-artifact-signing' && inputs.dry-run == false
-        uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+      - name: Sign MSI (SSL.com eSigner)
+        if: inputs.signing-mode == 'sslcom' && inputs.dry-run == false
+        uses: sslcom/esigner-codesign@v1.3.2
         with:
-          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
-          signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT_NAME }}
-          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE }}
-          files: ${{ github.workspace }}\dist\breeze-agent.msi
-          file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
-          timestamp-digest: SHA256
+          command: sign
+          username: ${{ secrets.ES_USERNAME }}
+          password: ${{ secrets.ES_PASSWORD }}
+          credential_id: ${{ secrets.CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.ES_TOTP_SECRET }}
+          file_path: ${{ github.workspace }}/dist/breeze-agent.msi
+          override: true
+          environment_name: PROD
+          malware_block: false
+          clean_logs: true
+          jvm_max_memory: 1024M
 
       - name: Sign MSI (PFX — legacy/internal PKI)
         if: inputs.signing-mode == 'pfx' && inputs.dry-run == false
@@ -444,7 +537,7 @@ jobs:
             # Valid = fully trusted chain; UnknownError = signed but the Azure
             # Artifact Signing root is not yet in the runner's local trust store
             # (normal for new accounts). Anything else is a real failure.
-            if ($sig.Status -ne "Valid" -and $sig.Status -ne "UnknownError") {
+            if ($sig.Status -ne "Valid") {
               throw "Signature validation failed for $name. Status: $($sig.Status)"
             }
             # UnknownError is a catch-all, so status alone does not prove a
@@ -456,9 +549,6 @@ jobs:
             # stops validating the moment the signing certificate expires.
             if (-not $sig.TimeStamperCertificate) {
               throw "$name is signed but not RFC3161 timestamped — refusing to ship a signature that expires with the certificate"
-            }
-            if ($sig.Status -eq "UnknownError") {
-              Write-Host "::warning::$name signed but root cert not yet trusted locally (Status: UnknownError). This is normal for new Azure Artifact Signing accounts."
             }
             $lines += "$name`twindows-authenticode-required"
             Write-Host "Verified: $name - Status: $($sig.Status) - Signer: $($sig.SignerCertificate.Subject)"
